@@ -32,10 +32,10 @@ int pwmrot = 0; // errechneter Wert für die CO2-Visualisierung
 int potirot = A1;
 int potigruen = A2;
 int potiblau = A3;
-int co2Sensor = A6;
-int co2ppm = 0; // nimmt einen Wert zwischen 0 und 5000 an, 400 - 450 sind Normalwerte
+int co2Sensor = 3;
+unsigned long co2ppm = 0; // nimmt einen Wert zwischen 0 und 5000 an, 400 - 450 sind Normalwerte
 unsigned long prev; // zeitvariable für die CO2-Messung alle intervall
-unsigned long intervall = 3000;
+unsigned long intervall = 5000;
 
 Adafruit_BME280 bme;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -45,13 +45,11 @@ void setup() {
   Serial.begin(9600);
   delay(3000); //wartet 3 Sekunden, damit alles hochfahren kann
   Serial.println("Initialisiere das Programm... ");
-  
+  prev = millis();
+
   pinMode(co2Sensor, INPUT);
   pinMode(buttonOLED, INPUT);
   pinMode(buttonLED, INPUT);
-  
-  co2ppm = (5000*(pulseIn(co2Sensor, HIGH, 2500000)/1000))/1004;// misst einmalig CO2 beim starten des Geräts, später dann mit Funktion alle 5 Minuten
-  prev = millis(); // startet den Timer für die C02-Messung
 
    unsigned status;
    status = bme.begin(0x76, &Wire); //initiiert I2C für den BME ---- warum steht hier nicht auch der OLED bzw. muss das überhaupt gemacht werden???
@@ -76,12 +74,6 @@ void setup() {
   }
 }
 
-void co2messung(){ // ermittelt alle 5 Minuten den CO2-Wert und speichert ihn in co2ppm
-    if (millis() - prev > intervall){
-    co2ppm = (5000*(pulseIn(co2Sensor, HIGH, 2500000)/1000))/1004; // Erklaerung im extra-file
-    }
-}
-
 void pwmrotberechnen(){
     if (co2ppm < 450){
         pwmrot = 0;
@@ -91,6 +83,15 @@ void pwmrotberechnen(){
     }
     else {
         pwmrot = (255*(co2ppm-450))/1550;
+    }
+}
+
+void co2messung(){ // ermittelt alle 5 sec den CO2-Wert und speichert ihn in co2ppm
+    if (millis() - prev > intervall){
+    co2ppm = (5000*(pulseIn(co2Sensor, HIGH, 2500000)/1000))/1004; // Erklaerung im extra-file
+    prev = millis();
+    pwmrotberechnen(); // rechnet den pwm-Wert für die rote LED anhand des CO2 ppm aus
+    // Serial.println(co2ppm);
     }
 }
 
@@ -153,7 +154,6 @@ void oledanzeige(){ // sorgt für die Anzeige des richtigen Wertes auf dem Displ
 
 void LEDanzeige(){ // sorgte für eine Farbanzeige der LED-Kette und wechselt zwischen den Modi CO2/Manuell/OFF
     if (buttonLED_status == 1){ // co2 anzeigen, 450 - 1500 ppm gruen weniger und rot mehr werdend
-        pwmrotberechnen(); // rechnet den pwm-Wert für die rote LED anhand des CO2 ppm aus
         analogWrite(ledmosfetrot, pwmrot);
         analogWrite(ledmosfetgruen, (255 - pwmrot));
         analogWrite(ledmosfetblau, 0);
@@ -226,7 +226,6 @@ void buttonLEDwatch(){ //verändert die buttonLED_status beim drücken des entsp
 }
 
 void loop() {
-   // Serial.println("program wird gestartet");
     co2messung();
     oledanzeige();
     buttonOLEDwatch();
